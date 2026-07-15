@@ -36,6 +36,8 @@ class Canvas(QWidget):
 
     # Emitted whenever the undo / redo availability may have changed.
     historyChanged = Signal(bool, bool)  # (can_undo, can_redo)
+    # Emitted when the user starts a stroke (lets the app re-raise the chrome).
+    interacted = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -209,6 +211,7 @@ class Canvas(QWidget):
     # --- stroke lifecycle ---------------------------------------------------
     def _begin(self, pos: QPointF) -> None:
         self._drawing = True
+        self.interacted.emit()
         width = self._pen_width if self._tool == "pen" else self._eraser_width
         self._active = {
             "tool": self._tool,

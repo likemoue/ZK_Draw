@@ -22,6 +22,8 @@ class CanvasWindow(QWidget):
     historyChanged = Signal(bool, bool)
     # emitted when the user presses Esc while drawing
     escapePressed = Signal()
+    # emitted when the user starts interacting (so the chrome can re-raise)
+    interacted = Signal()
 
     def __init__(self, mode: str = "screen", parent=None):
         super().__init__(parent)
@@ -29,9 +31,13 @@ class CanvasWindow(QWidget):
         self._click_through = False
 
         flags = (Qt.FramelessWindowHint
-                 | Qt.WindowStaysOnTopHint
                  | Qt.Tool
                  | Qt.NoDropShadowWindowHint)
+        # Only the transparent screen overlay must float above other apps.
+        # The opaque whiteboard is a normal-layer window so the toolbar/tools
+        # panel (which ARE always-on-top) reliably stay visible above it.
+        if mode == "screen":
+            flags |= Qt.WindowStaysOnTopHint
         self.setWindowFlags(flags)
         self.setWindowTitle(f"{config.APP_NAME} - {mode}")
 
@@ -42,6 +48,7 @@ class CanvasWindow(QWidget):
 
         self.canvas = Canvas(self)
         self.canvas.historyChanged.connect(self.historyChanged)
+        self.canvas.interacted.connect(self.interacted)
 
         self._place_full_screen()
 
@@ -100,7 +107,6 @@ class CanvasWindow(QWidget):
         self._place_full_screen()
         self.show()
         self.raise_()
-        self.activateWindow()
 
     def keyPressEvent(self, event) -> None:
         if event.key() == Qt.Key_Escape:

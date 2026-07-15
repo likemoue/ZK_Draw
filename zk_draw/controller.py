@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QPoint, Qt
+from PySide6.QtCore import QPoint, Qt, QTimer
 from PySide6.QtGui import QGuiApplication, QKeySequence, QShortcut
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
@@ -54,6 +54,8 @@ class Controller:
         for win in (self.screen_win, self.board_win):
             win.historyChanged.connect(self.panel.set_history)
             win.escapePressed.connect(self._on_escape)
+            # whenever the user touches the canvas, keep the chrome on top
+            win.interacted.connect(self._raise_ui)
 
     def _install_shortcuts(self) -> None:
         # One application-wide set, routed to whichever canvas is active. This
@@ -127,6 +129,13 @@ class Controller:
             self.panel.raise_()
         self.toolbar.raise_()
 
+    def _bring_ui_to_front(self) -> None:
+        """Raise the chrome and make the toolbar the active window, then do it
+        once more after pending events to win any window-manager race."""
+        self._raise_ui()
+        self.toolbar.activateWindow()
+        QTimer.singleShot(0, self._raise_ui)
+
     # --- main actions -------------------------------------------------------
     def _active_win(self) -> CanvasWindow | None:
         if self.mode == "screen":
@@ -165,8 +174,9 @@ class Controller:
         # reflect this canvas's own undo/redo availability
         self.panel.set_history(win.canvas.can_undo(), win.canvas.can_redo())
         self._reposition_panel()
-        self._raise_ui()
-        win.canvas.setFocus()
+        # raise the toolbar + tools panel above the canvas LAST so they stay
+        # visible (the opaque whiteboard would otherwise cover them)
+        self._bring_ui_to_front()
 
     # --- tools panel handlers ----------------------------------------------
     def _on_mode_changed(self, mode: str) -> None:
@@ -188,7 +198,6 @@ class Controller:
                 self._raise_ui()
             win.canvas.set_drawing_enabled(True)
             win.canvas.set_tool(mode)
-            win.canvas.setFocus()
 
     def _on_color(self, color) -> None:
         win = self._active_win()
