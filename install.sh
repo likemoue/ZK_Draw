@@ -26,15 +26,28 @@ python3 -m venv "$HERE/.venv"
 echo "==> [3/4] Installing launcher scripts"
 chmod +x "$HERE/run.sh"
 
-echo "==> [4/4] Installing desktop entry + icon"
-mkdir -p "$HOME/.local/share/applications"
-mkdir -p "$HOME/.local/share/icons/hicolor/256x256/apps"
-cp -f "$HERE/assets/zk-draw-256.png" \
-      "$HOME/.local/share/icons/hicolor/256x256/apps/zk-draw.png"
-sed "s|@HERE@|$HERE|g" "$HERE/zk-draw.desktop.in" \
-    > "$HOME/.local/share/applications/zk-draw.desktop"
-update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
-gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
+echo "==> [4/4] Installing desktop entry"
+# Install the menu entry for the REAL user even when the script is run with
+# sudo (needed when ZK_Draw lives under /opt). Otherwise the .desktop file
+# would land in root's home and never show in the user's app menu.
+if [[ -n "${SUDO_USER:-}" && "$SUDO_USER" != "root" ]]; then
+    REAL_USER="$SUDO_USER"
+    REAL_HOME="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
+else
+    REAL_USER="$(id -un)"
+    REAL_HOME="$HOME"
+fi
+
+APPDIR="$REAL_HOME/.local/share/applications"
+mkdir -p "$APPDIR"
+# The .desktop uses an ABSOLUTE icon path ($HERE/assets), so no icon-theme
+# copy is required and it works no matter where ZK_Draw is installed.
+sed "s|@HERE@|$HERE|g" "$HERE/zk-draw.desktop.in" > "$APPDIR/zk-draw.desktop"
+chmod +x "$APPDIR/zk-draw.desktop" 2>/dev/null || true
+if [[ "$REAL_USER" != "$(id -un)" ]]; then
+    chown "$REAL_USER:" "$APPDIR/zk-draw.desktop" 2>/dev/null || true
+fi
+update-desktop-database "$APPDIR" 2>/dev/null || true
 
 echo
 echo "============================================================"
