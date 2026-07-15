@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=ZK_Draw
+GenericName=Screen Annotator
+Comment=Vẽ chú thích lên màn hình và bảng trắng
+Exec=@HERE@/run.sh
+Icon=zk-draw
+Terminal=false
+Categories=Graphics;Education;Utility;
+Keywords=annotate;draw;whiteboard;screen;ipevo;
+StartupNotify=false
+StartupWMClass=ZK_Draw

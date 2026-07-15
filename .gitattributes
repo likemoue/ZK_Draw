@@ -1,0 +1,13 @@
+# Guarantee Unix (LF) line endings on checkout everywhere. Critical so the
+# shell scripts keep a valid shebang when cloned on Linux from Windows.
+* text=auto eol=lf
+
+# Shell / Python / text are always LF
+*.sh    text eol=lf
+*.py    text eol=lf
+*.md    text eol=lf
+*.in    text eol=lf
+*.txt   text eol=lf
+
+# Binary assets must never be touched
+*.png   binary
