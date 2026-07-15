@@ -24,12 +24,24 @@ Ba chức năng đúng như yêu cầu: **Vẽ lên màn hình**, **Bảng trắ
 
 ---
 
-## Cài đặt (Ubuntu 24.04)
+## Tải về & Cài đặt (Ubuntu 24.04)
 
 ```bash
+# 1. Tải mã nguồn (nếu chưa có git: sudo apt install -y git)
+git clone https://github.com/likemoue/ZK_Draw.git
 cd ZK_Draw
+
+# 2. Cài đặt (cần sudo để cài thư viện Qt)
 chmod +x install.sh run.sh
 ./install.sh
+```
+
+Không có git? Tải ZIP:
+
+```bash
+wget https://github.com/likemoue/ZK_Draw/archive/refs/heads/main.zip
+unzip main.zip && cd ZK_Draw-main
+chmod +x install.sh run.sh && ./install.sh
 ```
 
 Script sẽ: cài thư viện hệ thống cho Qt (xcb), tạo môi trường ảo `.venv`,
