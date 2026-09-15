@@ -6,46 +6,28 @@ from . import config
 def stylesheet() -> str:
     return f"""
     QToolTip {{
-        background: {config.PANEL_BG2};
-        color: {config.TEXT};
-        border: 1px solid {config.PANEL_BORDER};
+        background: #1E2024;
+        color: #F0F2F5;
+        border: 1px solid #444750;
         padding: 4px 8px;
-        border-radius: 6px;
-        font-size: 12px;
-    }}
-    QToolButton {{
-        background: transparent;
-        border: 1px solid transparent;
-        border-radius: 9px;
-        padding: 4px;
-    }}
-    QToolButton:hover {{
-        background: {config.PANEL_HOVER};
-        border: 1px solid {config.PANEL_BORDER};
-    }}
-    QToolButton:pressed {{
-        background: {config.PANEL_BG2};
-    }}
-    QToolButton:checked {{
-        background: {config.ACCENT_SOFT};
-        border: 1px solid {config.ACCENT};
-    }}
-    QToolButton:disabled {{
-        opacity: 0.4;
+        border-radius: 4px;
+        font-size: 11px;
     }}
     QMenu {{
-        background: {config.PANEL_BG};
-        color: {config.TEXT};
-        border: 1px solid {config.PANEL_BORDER};
+        background: {config.FLYOUT_BG};
+        color: {config.FLYOUT_TEXT};
+        border: 1px solid {config.FLYOUT_BORDER};
         border-radius: 8px;
         padding: 4px;
     }}
     QMenu::item {{
         padding: 6px 18px;
-        border-radius: 6px;
+        border-radius: 4px;
     }}
     QMenu::item:selected {{
-        background: {config.ACCENT_SOFT};
+        background: {config.ACTIVE_CYAN};
+        color: #FFFFFF;
     }}
     QLabel {{ background: transparent; }}
     """
+

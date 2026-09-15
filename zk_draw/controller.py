@@ -1,17 +1,20 @@
-"""Application controller: wires the toolbar, tools panel and canvas windows."""
+"""Application controller: wires the IPEVO-style toolbar, flyout panel and canvas windows."""
 
 from __future__ import annotations
 
+import os
+from datetime import datetime
+
 from PySide6.QtCore import QPoint, Qt, QTimer
-from PySide6.QtGui import QGuiApplication, QKeySequence, QShortcut
+from PySide6.QtGui import QColor, QGuiApplication, QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 from . import config, icons
 from .toolbar import MainToolbar
-from .tools_panel import ToolsPanel
+from .tools_panel import ToolFlyoutPanel
 from .windows import CanvasWindow
 
-GAP = 10  # px between the toolbar and the tools panel
+GAP = 8  # px between the toolbar and the flyout panel
 
 
 class Controller:
@@ -19,14 +22,22 @@ class Controller:
 
     def __init__(self, app: QApplication):
         self.app = app
-        self.mode: str | None = None          # None | "screen" | "whiteboard"
+        self.mode: str = "screen"             # "screen" | "whiteboard"
+
+        # Separate stroke histories for screen vs whiteboard
+        self._screen_strokes: list[dict] = []
+        self._screen_redo: list[dict] = []
+        self._wb_strokes: list[dict] = []
+        self._wb_redo: list[dict] = []
 
         # windows -----------------------------------------------------------
         self.toolbar = MainToolbar()
-        self.panel = ToolsPanel()
+        self.panel = ToolFlyoutPanel()
         self.screen_win = CanvasWindow("screen")
-        self.board_win = CanvasWindow("whiteboard")
-        self.panel.hide()
+        self.screen_win.set_chrome_checker(self._is_point_in_chrome)
+
+        # Set the ZK logo as window icon (shows in taskbar)
+        self.screen_win.setWindowIcon(QIcon(icons.app_icon(64)))
 
         self._wire()
         self._install_shortcuts()
@@ -36,31 +47,28 @@ class Controller:
     # --- setup --------------------------------------------------------------
     def _wire(self) -> None:
         tb = self.toolbar
-        tb.drawRequested.connect(self._on_draw_clicked)
-        tb.whiteboardRequested.connect(self._on_board_clicked)
+        tb.modeChanged.connect(self._on_mode_changed)
+        tb.toolChanged.connect(self._on_tool_changed)
+        tb.togglePanel.connect(self._on_toggle_panel)
+        tb.undoRequested.connect(self._on_undo)
+        tb.redoRequested.connect(self._on_redo)
+        tb.clearRequested.connect(self._on_clear)
+        tb.snapshotRequested.connect(self._on_snapshot)
         tb.collapseToggled.connect(self._on_collapse)
-        tb.moved.connect(self._reposition_panel)
+        tb.moved.connect(self._on_toolbar_moved)
         tb.quitRequested.connect(self.quit)
 
         p = self.panel
-        p.modeChanged.connect(self._on_mode_changed)
         p.colorChanged.connect(self._on_color)
         p.penWidthChanged.connect(self._on_pen_width)
         p.eraserWidthChanged.connect(self._on_eraser_width)
-        p.clearRequested.connect(self._on_clear)
-        p.undoRequested.connect(self._on_undo)
-        p.redoRequested.connect(self._on_redo)
+        p.closeRequested.connect(self._hide_panel)
 
-        for win in (self.screen_win, self.board_win):
-            win.historyChanged.connect(self.panel.set_history)
-            win.escapePressed.connect(self._on_escape)
-            # whenever the user touches the canvas, keep the chrome on top
-            win.interacted.connect(self._raise_ui)
+        self.screen_win.historyChanged.connect(self.toolbar.set_history)
+        self.screen_win.escapePressed.connect(self._on_escape)
+        self.screen_win.interacted.connect(self._raise_ui)
 
     def _install_shortcuts(self) -> None:
-        # One application-wide set, routed to whichever canvas is active. This
-        # works no matter which of our windows currently holds keyboard focus
-        # (overlay, whiteboard, toolbar or tools panel).
         self._shortcut("Ctrl+Z", self._on_undo)
         self._shortcut("Ctrl+Y", self._on_redo)
         self._shortcut("Ctrl+Shift+Z", self._on_redo)
@@ -76,11 +84,11 @@ class Controller:
         self.tray = None
         if not QSystemTrayIcon.isSystemTrayAvailable():
             return
-        self.tray = QSystemTrayIcon(icons.icon("pen", 32, config.ACCENT))
+        self.tray = QSystemTrayIcon(QIcon(icons.app_icon(64)))
         self.tray.setToolTip(config.APP_NAME)
         menu = QMenu()
-        menu.addAction("Vẽ lên màn hình", self._on_draw_clicked)
-        menu.addAction("Bảng trắng", self._on_board_clicked)
+        menu.addAction("Vẽ lên màn hình", lambda: self._switch_mode("screen"))
+        menu.addAction("Bảng trắng", lambda: self._switch_mode("whiteboard"))
         menu.addSeparator()
         menu.addAction("Hiện thanh công cụ", self._show_toolbar)
         menu.addSeparator()
@@ -92,11 +100,18 @@ class Controller:
     def _place_initial(self) -> None:
         screen = QGuiApplication.primaryScreen().availableGeometry()
         self.toolbar.adjustSize()
-        x = screen.left() + 40
-        y = screen.top() + 120
+        x = screen.left() + 30
+        y = screen.top() + 100
         self.toolbar.move(x, y)
         self.toolbar.show()
+
+        # Initialize canvas & tool state (screen mode, pen tool)
+        self._activate_pen()
+        self.screen_win.show_overlay()
+        self.panel.set_tool("pen")
+        self.panel.show()
         self._reposition_panel()
+        self._bring_ui_to_front()
 
     # --- window layout ------------------------------------------------------
     def _reposition_panel(self) -> None:
@@ -111,135 +126,200 @@ class Controller:
         x = tb.right() + GAP
         y = tb.top()
         if x + w <= screen.right():
-            pass                                   # fits to the right
+            pass
         elif tb.left() - GAP - w >= screen.left():
-            x = tb.left() - GAP - w                # fits to the left
+            x = tb.left() - GAP - w
         else:
-            # not enough room either side -> drop it below the toolbar
             x = tb.left()
             y = tb.bottom() + GAP
 
         x = max(screen.left() + 4, min(x, screen.right() - w - 4))
         y = max(screen.top() + 4, min(y, screen.bottom() - h - 4))
         self.panel.move(int(x), int(y))
+        self._update_canvas_shape()
+
+    def _is_point_in_chrome(self, gpos: QPoint) -> bool:
+        if self.toolbar.frameGeometry().contains(gpos):
+            return True
+        if self.panel.isVisible() and self.panel.frameGeometry().contains(gpos):
+            return True
+        return False
+
+    def _update_canvas_shape(self) -> None:
+        if not self.screen_win.isVisible():
+            return
+        if QGuiApplication.platformName() != "xcb":
+            return
+        from . import native_x11
+
+        if self.screen_win.is_click_through():
+            native_x11.update_canvas_input_shape(int(self.screen_win.winId()), True)
+        else:
+            holes = []
+            tb = self.toolbar.frameGeometry()
+            holes.append((tb.x(), tb.y(), tb.width(), tb.height()))
+            if self.panel.isVisible():
+                p = self.panel.frameGeometry()
+                holes.append((p.x(), p.y(), p.width(), p.height()))
+            native_x11.update_canvas_input_shape(int(self.screen_win.winId()), False, holes)
 
     def _raise_ui(self) -> None:
-        """Keep the interactive chrome above the full-screen canvas."""
+        if self.screen_win.isVisible() and QGuiApplication.platformName() == "xcb":
+            from . import native_x11
+            above = []
+            if self.panel.isVisible():
+                above.append(int(self.panel.winId()))
+            above.append(int(self.toolbar.winId()))
+            native_x11.restack_above(above, int(self.screen_win.winId()))
+
+        self.toolbar.raise_()
         if self.panel.isVisible():
             self.panel.raise_()
-        self.toolbar.raise_()
+        self._update_canvas_shape()
 
     def _bring_ui_to_front(self) -> None:
-        """Raise the chrome and make the toolbar the active window, then do it
-        once more after pending events to win any window-manager race."""
         self._raise_ui()
         self.toolbar.activateWindow()
         QTimer.singleShot(0, self._raise_ui)
 
-    # --- main actions -------------------------------------------------------
-    def _active_win(self) -> CanvasWindow | None:
+    # --- helper: activate pen in current mode --------------------------------
+    def _activate_pen(self) -> None:
+        """Set canvas to pen tool in the current mode."""
+        win = self.screen_win
+        if win.is_click_through():
+            win.set_click_through(False)
+        win.canvas.set_drawing_enabled(True)
+        win.canvas.set_tool("pen")
+        win.canvas.set_pen_width(self.panel.pen_width())
+        win.canvas.set_color(self.panel.color())
+        win.canvas.set_translucent(False)
+
+    # --- MODE SWITCHING (the core logic) ------------------------------------
+    def _switch_mode(self, new_mode: str) -> None:
+        """Switch between screen and whiteboard, saving/restoring strokes."""
+        canvas = self.screen_win.canvas
+
+        # Save current mode's strokes
+        old_strokes, old_redo = canvas.save_strokes()
         if self.mode == "screen":
-            return self.screen_win
-        if self.mode == "whiteboard":
-            return self.board_win
-        return None
+            self._screen_strokes = old_strokes
+            self._screen_redo = old_redo
+        else:
+            self._wb_strokes = old_strokes
+            self._wb_redo = old_redo
 
-    def _on_draw_clicked(self) -> None:
-        self._activate("screen" if self.mode != "screen" else None)
+        # Switch
+        self.mode = new_mode
+        is_wb = (new_mode == "whiteboard")
+        self.screen_win.set_whiteboard_active(is_wb)
 
-    def _on_board_clicked(self) -> None:
-        self._activate("whiteboard" if self.mode != "whiteboard" else None)
+        # Restore new mode's strokes
+        if is_wb:
+            canvas.restore_strokes(self._wb_strokes, self._wb_redo)
+        else:
+            canvas.restore_strokes(self._screen_strokes, self._screen_redo)
 
-    def _activate(self, mode: str | None) -> None:
-        # tear down the previous mode
-        if self.mode == "screen" and mode != "screen":
-            self.screen_win.hide()
-        if self.mode == "whiteboard" and mode != "whiteboard":
-            self.board_win.hide()
-
-        self.mode = mode
-        self.toolbar.set_draw_active(mode == "screen")
-        self.toolbar.set_whiteboard_active(mode == "whiteboard")
-
-        if mode is None:
-            self.panel.hide()
-            return
-
-        win = self._active_win()
-        # start every session with the pen active
-        self.panel.set_mode("pen")
-        self._apply_mode_to_canvas(win, "pen")
-        win.show_overlay()
+        # Activate pen in new mode and show panel
+        self._activate_pen()
+        self.panel.set_tool("pen")
         self.panel.show()
-        # reflect this canvas's own undo/redo availability
-        self.panel.set_history(win.canvas.can_undo(), win.canvas.can_redo())
         self._reposition_panel()
-        # raise the toolbar + tools panel above the canvas LAST so they stay
-        # visible (the opaque whiteboard would otherwise cover them)
         self._bring_ui_to_front()
 
-    # --- tools panel handlers ----------------------------------------------
     def _on_mode_changed(self, mode: str) -> None:
-        win = self._active_win()
-        if win is None:
-            return
-        self._apply_mode_to_canvas(win, mode)
+        """Toolbar emits this when the user clicks a different mode button."""
+        self._switch_mode(mode)
+
+    def _on_toggle_panel(self) -> None:
+        """Toolbar emits this when the user clicks the already-active mode button."""
+        self._activate_pen()
+        self.panel.set_tool("pen")
+        if self.panel.isVisible():
+            self.panel.hide()
+        else:
+            self.panel.show()
+            self._reposition_panel()
         self._raise_ui()
 
-    def _apply_mode_to_canvas(self, win: CanvasWindow, mode: str) -> None:
-        if mode == "none":
+    # --- TOOL SWITCHING (pen / eraser / pointer within current mode) ---------
+    def _on_tool_changed(self, tool: str) -> None:
+        """Toolbar emits this when the user clicks a sub-tool button."""
+        win = self.screen_win
+        if tool == "pointer":
             win.canvas.set_drawing_enabled(False)
-            if win.mode == "screen":
-                win.set_click_through(True)
-                self._raise_ui()
-        else:  # pen or eraser
-            if win.mode == "screen" and win.is_click_through():
+            win.set_click_through(True)
+            self.panel.hide()
+        elif tool == "eraser":
+            if win.is_click_through():
                 win.set_click_through(False)
-                self._raise_ui()
             win.canvas.set_drawing_enabled(True)
-            win.canvas.set_tool(mode)
+            win.canvas.set_tool("eraser")
+            win.canvas.set_eraser_width(self.panel.eraser_width())
+            win.canvas.set_translucent(False)
+            self.panel.set_tool("eraser")
+            self.panel.show()
+            self._reposition_panel()
+        elif tool == "pen":
+            self._activate_pen()
+            self.panel.set_tool("pen")
+            self.panel.show()
+            self._reposition_panel()
 
-    def _on_color(self, color) -> None:
-        win = self._active_win()
-        if win:
-            win.canvas.set_color(color)
+        self._raise_ui()
+
+    def _on_color(self, color: QColor) -> None:
+        self.screen_win.canvas.set_color(color)
+        self.toolbar.set_pen_color(color)
 
     def _on_pen_width(self, w: int) -> None:
-        win = self._active_win()
-        if win:
-            win.canvas.set_pen_width(w)
+        self.screen_win.canvas.set_pen_width(w)
 
     def _on_eraser_width(self, w: int) -> None:
-        win = self._active_win()
-        if win:
-            win.canvas.set_eraser_width(w)
+        self.screen_win.canvas.set_eraser_width(w)
 
     def _on_clear(self) -> None:
-        win = self._active_win()
-        if win:
-            win.canvas.clear()
+        self.screen_win.canvas.clear()
 
     def _on_undo(self) -> None:
-        win = self._active_win()
-        if win:
-            win.canvas.undo()
+        self.screen_win.canvas.undo()
 
     def _on_redo(self) -> None:
-        win = self._active_win()
-        if win:
-            win.canvas.redo()
+        self.screen_win.canvas.redo()
+
+    def _on_snapshot(self) -> None:
+        screen = QGuiApplication.primaryScreen()
+        if not screen:
+            return
+        pix = screen.grabWindow(0)
+        pics_dir = os.path.expanduser("~/Pictures")
+        if not os.path.isdir(pics_dir):
+            pics_dir = os.path.expanduser("~")
+        filename = f"ZK_Draw_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+        path = os.path.join(pics_dir, filename)
+        pix.save(path, "PNG")
+        QGuiApplication.clipboard().setPixmap(pix)
+        if self.tray is not None:
+            self.tray.showMessage("Đã chụp màn hình", f"Đã lưu vào {path}",
+                                  QSystemTrayIcon.Information, 3000)
 
     def _on_escape(self) -> None:
-        # Esc -> "use the computer normally"
-        if self.mode is not None:
-            self.panel.set_mode("none")
+        """Escape → switch to pointer mode."""
+        self.toolbar._on_pointer_clicked()
 
     # --- collapse -----------------------------------------------------------
+    def _on_toolbar_moved(self) -> None:
+        self._reposition_panel()
+        self._update_canvas_shape()
+
+    def _hide_panel(self) -> None:
+        self.panel.hide()
+        self._update_canvas_shape()
+
     def _on_collapse(self, collapsed: bool) -> None:
         if collapsed:
-            # minimise everything: leave only the compact handle
-            self._activate(None)
+            self.panel.hide()
         self._reposition_panel()
+        self._update_canvas_shape()
 
     def _show_toolbar(self) -> None:
         if self.toolbar.is_collapsed():
@@ -250,13 +330,12 @@ class Controller:
         self.toolbar.activateWindow()
 
     def _ensure_toolbar_on_screen(self) -> None:
-        """Pull the toolbar back into view if it ended up off-screen."""
         tb = self.toolbar.frameGeometry()
         screens = QGuiApplication.screens()
         if any(s.availableGeometry().intersects(tb) for s in screens):
             return
         area = QGuiApplication.primaryScreen().availableGeometry()
-        self.toolbar.move(area.left() + 40, area.top() + 120)
+        self.toolbar.move(area.left() + 30, area.top() + 100)
 
     def _on_tray_activated(self, reason) -> None:
         if reason == QSystemTrayIcon.Trigger:

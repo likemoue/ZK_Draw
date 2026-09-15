@@ -1,13 +1,12 @@
-"""The floating drawing-tools panel (pen, colours, sizes, eraser, undo/redo).
+"""The modern Flyout Panel (COLORS grid, live HEX badge, THICKNESS preview, and independent sliders).
 
-It is shown whenever screen-draw or whiteboard mode is active and moves
-together with the main toolbar.
+Pixel-perfect implementation matching the user's mockup design.
 """
 
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QFont, QPainter
 from PySide6.QtWidgets import (
     QButtonGroup,
     QGridLayout,
@@ -18,18 +17,79 @@ from PySide6.QtWidgets import (
 )
 
 from . import config
-from .widgets import ColorSwatch, RoundedFrame, SizeDot, ToolButton, v_separator
+from .widgets import (
+    ColorSwatch,
+    FlyoutFrame,
+    RainbowSwatch,
+    ThicknessPreview,
+    ThicknessSlider,
+)
 
 
-class ToolsPanel(RoundedFrame):
-    # mode is one of "pen", "eraser", "none" (none = use computer normally)
-    modeChanged = Signal(str)
+class ColorHexBadge(QWidget):
+    """Badge showing a filled color dot and uppercase hex code (e.g. ● #2563EB)."""
+
+    def __init__(self, color: QColor, parent=None):
+        super().__init__(parent)
+        self._color = QColor(color)
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(5)
+
+        self.dot = QWidget()
+        self.dot.setFixedSize(8, 8)
+        self.dot.paintEvent = self._paint_dot
+
+        self.lbl = QLabel(self._color.name().upper())
+        self.lbl.setStyleSheet(f"color:{config.FLYOUT_TEXT_DARK};font-weight:bold;font-size:11px;background:transparent;")
+        lay.addWidget(self.dot, 0, Qt.AlignVCenter)
+        lay.addWidget(self.lbl, 0, Qt.AlignVCenter)
+
+    def _paint_dot(self, event) -> None:
+        p = QPainter(self.dot)
+        p.setRenderHint(QPainter.Antialiasing, True)
+        p.setPen(Qt.NoPen)
+        p.setBrush(self._color)
+        p.drawEllipse(0, 0, 8, 8)
+        p.end()
+
+    def set_color(self, color: QColor) -> None:
+        self._color = QColor(color)
+        self.lbl.setText(self._color.name().upper())
+        self.dot.update()
+
+
+class PxBadge(QLabel):
+    """Pill badge showing thickness like '8 px' with soft blue background."""
+
+    def __init__(self, px: int, parent=None):
+        super().__init__(f"{px} px", parent)
+        self.setAlignment(Qt.AlignCenter)
+        self.setStyleSheet(f"""
+            QLabel {{
+                background: {config.ACTIVE_BLUE_LIGHT};
+                color: {config.ACTIVE_BLUE};
+                font-weight: bold;
+                font-size: 11px;
+                border: 1px solid #DBEAFE;
+                border-radius: 6px;
+                padding: 2px 8px;
+            }}
+        """)
+
+    def set_px(self, px: int) -> None:
+        self.setText(f"{px} px")
+
+
+class ToolFlyoutPanel(FlyoutFrame):
+    """Modern light card beside the toolbar for Colors and Thickness."""
+
     colorChanged = Signal(QColor)
+    thicknessChanged = Signal(int)
     penWidthChanged = Signal(int)
     eraserWidthChanged = Signal(int)
-    clearRequested = Signal()
-    undoRequested = Signal()
-    redoRequested = Signal()
+    translucentChanged = Signal(bool)
+    closeRequested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -37,146 +97,199 @@ class ToolsPanel(RoundedFrame):
                             | Qt.WindowStaysOnTopHint
                             | Qt.Tool
                             | Qt.NoDropShadowWindowHint)
-        self._mode = "pen"
+        self._current_tool = "pen"
+        self._color = QColor(config.DEFAULT_COLOR)
+        self._pen_width = config.DEFAULT_PEN_SIZE        # 5
+        self._eraser_width = config.DEFAULT_ERASER_SIZE  # 24
+        self._translucent = False
+
         self._build()
         self._select_defaults()
 
-    # --- construction -------------------------------------------------------
     def _build(self) -> None:
-        root = QHBoxLayout(self)
-        root.setContentsMargins(12, 8, 12, 8)
-        root.setSpacing(8)
+        self.setFixedWidth(244)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(14, 14, 14, 14)
+        root.setSpacing(12)
 
-        # -- tools: pen + eraser (mutually exclusive, both can toggle to none)
-        self.btn_pen = ToolButton("pen", "Bút vẽ (nhấn lại để dùng máy tính)",
-                                   26, checkable=True)
-        self.btn_eraser = ToolButton("eraser", "Tẩy (chọn cỡ bên phải)",
-                                     26, checkable=True)
-        self.btn_pen.clicked.connect(lambda: self._toggle_tool("pen"))
-        self.btn_eraser.clicked.connect(lambda: self._toggle_tool("eraser"))
-        tools = QHBoxLayout()
-        tools.setSpacing(2)
-        tools.addWidget(self.btn_pen)
-        tools.addWidget(self.btn_eraser)
-        root.addLayout(tools)
+        # -- Section: COLORS (shown for Pen only) ----------------------------
+        self.color_section = QWidget()
+        self.color_section.setStyleSheet("background:transparent;")
+        c_lay = QVBoxLayout(self.color_section)
+        c_lay.setContentsMargins(0, 0, 0, 0)
+        c_lay.setSpacing(8)
 
-        root.addWidget(v_separator())
+        # Header 1: "COLORS" + Live HEX badge
+        h1 = QHBoxLayout()
+        h1.setContentsMargins(0, 0, 0, 0)
+        lbl_colors = QLabel("COLORS")
+        lbl_colors.setStyleSheet(f"color:{config.FLYOUT_TEXT};font-weight:bold;font-size:11px;background:transparent;")
+        h1.addWidget(lbl_colors, 0, Qt.AlignVCenter)
+        h1.addStretch()
 
-        # -- pen sizes
-        self.pen_size_group = QButtonGroup(self)
-        self.pen_size_group.setExclusive(True)
-        pen_sizes = QHBoxLayout()
-        pen_sizes.setSpacing(2)
-        for w in config.PEN_SIZES:
-            dot = SizeDot(w, "pen")
-            self.pen_size_group.addButton(dot, w)
-            dot.clicked.connect(lambda _=False, val=w: self._on_pen_width(val))
-            pen_sizes.addWidget(dot)
-        root.addLayout(pen_sizes)
+        self.color_badge = ColorHexBadge(self._color)
+        h1.addWidget(self.color_badge, 0, Qt.AlignVCenter)
+        c_lay.addLayout(h1)
 
-        root.addWidget(v_separator())
-
-        # -- colour swatches (2 rows)
+        # 4 columns grid: 11 preset swatches + 1 rainbow picker
         self.color_group = QButtonGroup(self)
         self.color_group.setExclusive(True)
-        colors = QGridLayout()
-        colors.setHorizontalSpacing(2)
-        colors.setVerticalSpacing(2)
-        per_row = (len(config.PALETTE) + 1) // 2
-        for i, hexc in enumerate(config.PALETTE):
-            sw = ColorSwatch(hexc)
+        grid = QGridLayout()
+        grid.setSpacing(8)
+        grid.setContentsMargins(0, 0, 0, 0)
+
+        for i, hexc in enumerate(config.PALETTE[:11]):
+            sw = ColorSwatch(hexc, size=32)
             self.color_group.addButton(sw, i)
-            sw.clicked.connect(lambda _=False, c=hexc: self._on_color(c))
-            colors.addWidget(sw, i // per_row, i % per_row)
-        root.addLayout(colors)
+            sw.clicked.connect(lambda _=False, c=hexc: self._on_color(QColor(c)))
+            grid.addWidget(sw, i // 4, i % 4)
 
-        root.addWidget(v_separator())
+        self.rainbow_swatch = RainbowSwatch(size=32)
+        self.rainbow_swatch.colorPicked.connect(self._on_custom_color)
+        grid.addWidget(self.rainbow_swatch, 2, 3)
+        c_lay.addLayout(grid)
 
-        # -- eraser sizes
-        self.eraser_size_group = QButtonGroup(self)
-        self.eraser_size_group.setExclusive(True)
-        er = QVBoxLayout()
-        er.setSpacing(1)
-        er_label = QLabel("Tẩy")
-        er_label.setAlignment(Qt.AlignHCenter)
-        er_label.setStyleSheet(
-            f"color:{config.TEXT_DIM};font-size:10px;background:transparent;")
-        er_row = QHBoxLayout()
-        er_row.setSpacing(2)
-        for w in config.ERASER_SIZES:
-            dot = SizeDot(w, "eraser", box=30)
-            self.eraser_size_group.addButton(dot, w)
-            dot.clicked.connect(
-                lambda _=False, val=w: self._on_eraser_width(val))
-            er_row.addWidget(dot)
-        er.addWidget(er_label)
-        er.addLayout(er_row)
-        root.addLayout(er)
+        root.addWidget(self.color_section)
 
-        root.addWidget(v_separator())
+        # -- Section: THICKNESS / SIZE ---------------------------------------
+        self.thick_section = QWidget()
+        self.thick_section.setStyleSheet("background:transparent;")
+        t_lay = QVBoxLayout(self.thick_section)
+        t_lay.setContentsMargins(0, 0, 0, 0)
+        t_lay.setSpacing(8)
 
-        # -- clear / undo / redo
-        self.btn_clear = ToolButton("trash", "Xóa hết", 24)
-        self.btn_undo = ToolButton("undo", "Hoàn tác (Ctrl+Z)", 24)
-        self.btn_redo = ToolButton("redo", "Làm lại (Ctrl+Y)", 24)
-        self.btn_clear.clicked.connect(self.clearRequested)
-        self.btn_undo.clicked.connect(self.undoRequested)
-        self.btn_redo.clicked.connect(self.redoRequested)
-        actions = QHBoxLayout()
-        actions.setSpacing(2)
-        actions.addWidget(self.btn_clear)
-        actions.addWidget(self.btn_undo)
-        actions.addWidget(self.btn_redo)
-        root.addLayout(actions)
+        # Header 2: "THICKNESS" + Live PX badge
+        h2 = QHBoxLayout()
+        h2.setContentsMargins(0, 0, 0, 0)
+        self.lbl_thick = QLabel("THICKNESS")
+        self.lbl_thick.setStyleSheet(f"color:{config.FLYOUT_TEXT};font-weight:bold;font-size:11px;background:transparent;")
+        h2.addWidget(self.lbl_thick, 0, Qt.AlignVCenter)
+        h2.addStretch()
 
-        self.btn_undo.setEnabled(False)
-        self.btn_redo.setEnabled(False)
+        self.px_badge = PxBadge(self._pen_width)
+        h2.addWidget(self.px_badge, 0, Qt.AlignVCenter)
+        t_lay.addLayout(h2)
+
+        # Live preview box
+        self.preview = ThicknessPreview(self._pen_width, self._color)
+        t_lay.addWidget(self.preview)
+
+        # 1. Independent Pen Slider (Range 1 to 25, default 5)
+        self.pen_slider = ThicknessSlider(
+            config.PEN_MIN, config.PEN_MAX, self._pen_width,
+            ticks=(1, 5, 9, 13, 17, 21)
+        )
+        self.pen_slider.valueChanged.connect(self._on_pen_slider_moved)
+        t_lay.addWidget(self.pen_slider)
+
+        # 2. Independent Eraser Slider (Range 6 to 60, default 24)
+        self.eraser_slider = ThicknessSlider(
+            config.ERASER_MIN, config.ERASER_MAX, self._eraser_width,
+            ticks=(6, 15, 25, 35, 45, 60)
+        )
+        self.eraser_slider.valueChanged.connect(self._on_eraser_slider_moved)
+        self.eraser_slider.hide()
+        t_lay.addWidget(self.eraser_slider)
+
+        root.addWidget(self.thick_section)
 
     def _select_defaults(self) -> None:
-        # default colour + pen size checked
         for btn in self.color_group.buttons():
             if btn.color == QColor(config.DEFAULT_COLOR):
                 btn.setChecked(True)
                 break
-        b = self.pen_size_group.button(config.DEFAULT_PEN_SIZE)
-        if b:
-            b.setChecked(True)
-        b = self.eraser_size_group.button(config.DEFAULT_ERASER_SIZE)
-        if b:
-            b.setChecked(True)
-        self.btn_pen.setChecked(True)
 
-    # --- interaction --------------------------------------------------------
-    def _toggle_tool(self, tool: str) -> None:
-        if self._mode == tool:
-            self.set_mode("none")
-        else:
-            self.set_mode(tool)
+    # --- tool & property switching ------------------------------------------
+    def set_tool(self, tool: str) -> None:
+        """Switch flyout layout and slider according to current tool (pen vs eraser)."""
+        self._current_tool = tool
+        if tool == "eraser":
+            self.color_section.hide()
+            self.lbl_thick.setText("ERASER SIZE")
+            self.px_badge.set_px(self._eraser_width)
+            self.pen_slider.hide()
+            self.eraser_slider.show()
+            self.preview.set_color(QColor("#2563EB"))
+            self.preview.set_thickness(self._eraser_width)
+        else:  # pen
+            self.color_section.show()
+            self.lbl_thick.setText("THICKNESS")
+            self.px_badge.set_px(self._pen_width)
+            self.eraser_slider.hide()
+            self.pen_slider.show()
+            self.preview.set_color(self._color)
+            self.preview.set_thickness(self._pen_width)
+        self.adjustSize()
 
-    def set_mode(self, mode: str) -> None:
-        self._mode = mode
-        self.btn_pen.setChecked(mode == "pen")
-        self.btn_eraser.setChecked(mode == "eraser")
-        self.modeChanged.emit(mode)
+    def current_tool(self) -> str:
+        return self._current_tool
 
-    def mode(self) -> str:
-        return self._mode
+    def _on_pen_slider_moved(self, val: int) -> None:
+        self._pen_width = val
+        self.px_badge.set_px(val)
+        self.preview.set_thickness(val)
+        self.penWidthChanged.emit(val)
+        self.thicknessChanged.emit(val)
 
-    def _on_color(self, hexc: str) -> None:
-        self.colorChanged.emit(QColor(hexc))
-        # choosing a colour means we want to draw with the pen
-        if self._mode != "pen":
-            self.set_mode("pen")
+    def _on_eraser_slider_moved(self, val: int) -> None:
+        self._eraser_width = val
+        self.px_badge.set_px(val)
+        self.preview.set_thickness(val)
+        self.eraserWidthChanged.emit(val)
+        self.thicknessChanged.emit(val)
 
-    def _on_pen_width(self, w: int) -> None:
-        self.penWidthChanged.emit(w)
-        if self._mode != "pen":
-            self.set_mode("pen")
+    def _on_color(self, color: QColor) -> None:
+        self._color = QColor(color)
+        self.color_badge.set_color(self._color)
+        if self._current_tool != "eraser":
+            self.preview.set_color(self._color)
+        self.colorChanged.emit(self._color)
 
-    def _on_eraser_width(self, w: int) -> None:
-        self.eraserWidthChanged.emit(w)
-        self.set_mode("eraser")
+    def _on_custom_color(self, color: QColor) -> None:
+        self._on_color(color)
+        checked = self.color_group.checkedButton()
+        if checked:
+            self.color_group.setExclusive(False)
+            checked.setChecked(False)
+            self.color_group.setExclusive(True)
 
-    def set_history(self, can_undo: bool, can_redo: bool) -> None:
-        self.btn_undo.setEnabled(can_undo)
-        self.btn_redo.setEnabled(can_redo)
+    def _on_translucent(self, enabled: bool) -> None:
+        self._translucent = enabled
+        self.preview.set_translucent(enabled)
+        self.translucentChanged.emit(enabled)
+
+    def color(self) -> QColor:
+        return QColor(self._color)
+
+    def set_color(self, color: QColor) -> None:
+        self._color = QColor(color)
+        self.color_badge.set_color(self._color)
+        if self._current_tool != "eraser":
+            self.preview.set_color(self._color)
+
+    def pen_width(self) -> int:
+        return self._pen_width
+
+    def set_pen_width(self, w: int) -> None:
+        self._pen_width = int(w)
+        self.px_badge.set_px(self._pen_width)
+        self.pen_slider.setValue(self._pen_width)
+        if self._current_tool != "eraser":
+            self.preview.set_thickness(self._pen_width)
+
+    def eraser_width(self) -> int:
+        return self._eraser_width
+
+    def set_eraser_width(self, w: int) -> None:
+        self._eraser_width = int(w)
+        self.px_badge.set_px(self._eraser_width)
+        self.eraser_slider.setValue(self._eraser_width)
+        if self._current_tool == "eraser":
+            self.preview.set_thickness(self._eraser_width)
+
+    def set_translucent(self, enabled: bool) -> None:
+        pass
+
+
+# Backwards compatibility alias
+ToolsPanel = ToolFlyoutPanel

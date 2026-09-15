@@ -44,7 +44,7 @@ class Canvas(QWidget):
         self.setAttribute(Qt.WA_StaticContents, True)
         self.setMouseTracking(True)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
-        self.setFocusPolicy(Qt.StrongFocus)
+        self.setFocusPolicy(Qt.NoFocus)
 
         self._image = self._make_image(1, 1)
 
@@ -58,10 +58,30 @@ class Canvas(QWidget):
 
         self._drawing = False
         self._enabled = True
+        self._translucent = False
         self._active: dict | None = None
         self._last: QPointF | None = None
 
         self._apply_cursor()
+
+    # --- stroke save/restore (for separate screen vs whiteboard strokes) ----
+    def save_strokes(self) -> tuple[list[dict], list[dict]]:
+        """Return current (strokes, redo) lists and clear the canvas."""
+        strokes = list(self._strokes)
+        redo = list(self._redo)
+        return strokes, redo
+
+    def restore_strokes(self, strokes: list[dict], redo: list[dict]) -> None:
+        """Replace current strokes with the given lists and repaint."""
+        self._strokes = list(strokes)
+        self._redo = list(redo)
+        if not self._strokes:
+            # Fast path: no strokes → just clear
+            self._image.fill(Qt.transparent)
+            self.update()
+        else:
+            self._rebuild()
+        self._emit_history()
 
     # --- public API ---------------------------------------------------------
     def set_drawing_enabled(self, enabled: bool) -> None:
@@ -73,6 +93,13 @@ class Canvas(QWidget):
 
     def is_drawing_enabled(self) -> bool:
         return self._enabled
+
+    def set_translucent(self, enabled: bool) -> None:
+        self._translucent = bool(enabled)
+        self._apply_cursor()
+
+    def is_translucent(self) -> bool:
+        return self._translucent
 
     def set_tool(self, tool: str) -> None:
         if tool not in ("pen", "eraser"):
@@ -181,6 +208,11 @@ class Canvas(QWidget):
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if not self._enabled or event.button() != Qt.LeftButton:
             return
+        gpos = event.globalPosition().toPoint()
+        win = self.window()
+        if hasattr(win, "is_point_in_chrome") and win.is_point_in_chrome(gpos):
+            event.ignore()
+            return
         self._begin(event.position())
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
@@ -213,9 +245,12 @@ class Canvas(QWidget):
         self._drawing = True
         self.interacted.emit()
         width = self._pen_width if self._tool == "pen" else self._eraser_width
+        col = QColor(self._color)
+        if self._translucent and self._tool == "pen":
+            col.setAlpha(config.HIGHLIGHTER_ALPHA)
         self._active = {
             "tool": self._tool,
-            "color": QColor(self._color),
+            "color": col,
             "width": int(width),
             "points": [QPointF(pos)],
         }
@@ -247,6 +282,7 @@ class Canvas(QWidget):
         self._active = None
         self._drawing = False
         self._last = None
+        self.interacted.emit()
 
     # --- rendering helpers --------------------------------------------------
     def _paint_segment(self, stroke: dict, a: QPointF, b: QPointF) -> None:

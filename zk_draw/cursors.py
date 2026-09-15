@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QCursor, QGuiApplication, QPainter, QPen, QPixmap
 
 
@@ -22,21 +22,21 @@ def make_tool_cursor(tool: str, width: int, color) -> QCursor:
     if tool == "eraser":
         p.setPen(QPen(QColor("#000000"), 1.4))
         p.setBrush(QColor(255, 255, 255, 180))
-        p.drawEllipse(c - r, c - r, 2 * r, 2 * r)
+        p.drawEllipse(QRectF(c - r, c - r, 2 * r, 2 * r))
         p.setPen(QPen(QColor("#FFFFFF"), 1.0))
         p.setBrush(Qt.NoBrush)
-        p.drawEllipse(c - r + 1, c - r + 1, 2 * r - 2, 2 * r - 2)
+        p.drawEllipse(QRectF(c - r + 1, c - r + 1, 2 * r - 2, 2 * r - 2))
     else:
         col = QColor(color)
         # outline ring for visibility over any background
         p.setPen(QPen(QColor(255, 255, 255, 220), 1.6))
         p.setBrush(Qt.NoBrush)
-        p.drawEllipse(c - r, c - r, 2 * r, 2 * r)
+        p.drawEllipse(QRectF(c - r, c - r, 2 * r, 2 * r))
         p.setPen(QPen(QColor(0, 0, 0, 160), 0.8))
-        p.drawEllipse(c - r - 0.8, c - r - 0.8, 2 * r + 1.6, 2 * r + 1.6)
+        p.drawEllipse(QRectF(c - r - 0.8, c - r - 0.8, 2 * r + 1.6, 2 * r + 1.6))
         # centre dot in the pen colour
         p.setPen(Qt.NoPen)
         p.setBrush(col)
-        p.drawEllipse(c - 1.4, c - 1.4, 2.8, 2.8)
+        p.drawEllipse(QRectF(c - 1.4, c - 1.4, 2.8, 2.8))
     p.end()
     return QCursor(pm, int(c), int(c))

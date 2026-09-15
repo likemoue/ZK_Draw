@@ -1,0 +1,140 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F172A"/>
+      <stop offset="100%" stop-color="#1E293B"/>
+    </linearGradient>
+    
+    <!-- Brand Gradient: Purple to Cyan/Electric Blue -->
+    <linearGradient id="brandGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#A855F7"/>
+      <stop offset="35%" stop-color="#6366F1"/>
+      <stop offset="70%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#06B6D4"/>
+    </linearGradient>
+
+    <!-- Glowing Pen / Stroke Gradient -->
+    <linearGradient id="strokeGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#06B6D4" stop-opacity="0.1"/>
+      <stop offset="50%" stop-color="#38BDF8" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#A855F7" stop-opacity="1"/>
+    </linearGradient>
+
+    <linearGradient id="penBody" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#CBD5E1"/>
+    </linearGradient>
+
+    <linearGradient id="cyanGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22D3EE"/>
+      <stop offset="100%" stop-color="#0284C7"/>
+    </linearGradient>
+
+    <!-- Drop Shadows & Glow Filters -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#000000" flood-opacity="0.4"/>
+    </filter>
+
+    <filter id="neonGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+
+    <filter id="subtleGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+
+    <!-- Clip Path for Squircle -->
+    <clipPath id="squircleClip">
+      <rect x="32" y="32" width="448" height="448" rx="104" ry="104"/>
+    </clipPath>
+  </defs>
+
+  <!-- App Icon Base Squircle with Shadow -->
+  <rect x="32" y="32" width="448" height="448" rx="104" ry="104" fill="url(#bgGrad)" filter="url(#shadow)"/>
+  
+  <!-- Subtle Inner Border Highlight -->
+  <rect x="33" y="33" width="446" height="446" rx="103" ry="103" fill="none" stroke="rgba(255, 255, 255, 0.12)" stroke-width="2"/>
+
+  <!-- Background Screen Grid / Canvas lines subtly representing "Drawing on screen" -->
+  <g clip-path="url(#squircleClip)" opacity="0.18">
+    <!-- Screen canvas dotted / cross grid -->
+    <circle cx="120" cy="120" r="2.5" fill="#94A3B8"/>
+    <circle cx="180" cy="120" r="2.5" fill="#94A3B8"/>
+    <circle cx="240" cy="120" r="2.5" fill="#94A3B8"/>
+    <circle cx="300" cy="120" r="2.5" fill="#94A3B8"/>
+    <circle cx="360" cy="120" r="2.5" fill="#94A3B8"/>
+
+    <circle cx="120" cy="180" r="2.5" fill="#94A3B8"/>
+    <circle cx="360" cy="180" r="2.5" fill="#94A3B8"/>
+
+    <circle cx="120" cy="240" r="2.5" fill="#94A3B8"/>
+    <circle cx="360" cy="240" r="2.5" fill="#94A3B8"/>
+
+    <circle cx="120" cy="300" r="2.5" fill="#94A3B8"/>
+    <circle cx="360" cy="300" r="2.5" fill="#94A3B8"/>
+
+    <circle cx="120" cy="360" r="2.5" fill="#94A3B8"/>
+    <circle cx="180" cy="360" r="2.5" fill="#94A3B8"/>
+    <circle cx="240" cy="360" r="2.5" fill="#94A3B8"/>
+    <circle cx="300" cy="360" r="2.5" fill="#94A3B8"/>
+    <circle cx="360" cy="360" r="2.5" fill="#94A3B8"/>
+
+    <!-- Subtle screen frame / display bezel element -->
+    <rect x="76" y="76" width="360" height="360" rx="36" fill="none" stroke="#38BDF8" stroke-width="1.5" stroke-dasharray="6 8" opacity="0.35"/>
+  </g>
+
+  <!-- Outer Annotation Arc (Demonstrating dynamic screen sketching / curved vector path) -->
+  <path d="M 110 370 C 80 260, 150 110, 310 98 C 390 92, 430 150, 420 220" 
+        fill="none" 
+        stroke="url(#strokeGrad)" 
+        stroke-width="10" 
+        stroke-linecap="round" 
+        stroke-dasharray="14 10"
+        opacity="0.85"
+        filter="url(#neonGlow)"/>
+
+  <!-- Primary Logo Mark: Stylized Z-K Lightning Bolt combined with Pen & Screen Drawing -->
+  <!-- Main Bolt & Diagonal Wings matching original branding -->
+  <g filter="url(#subtleGlow)">
+    <!-- Main stylized 'Z' lightning upper & diagonal stem -->
+    <path d="M 152 144 L 328 144 C 342 144, 350 158, 342 170 L 254 286 L 316 286 C 328 286, 334 298, 326 308 L 202 432 C 192 442, 178 430, 184 418 L 226 316 L 160 316 C 146 316, 138 302, 146 290 L 224 186 L 152 186 C 142 186, 136 174, 144 164 Z"
+          fill="url(#brandGrad)"/>
+
+    <!-- The 'K' chevron wing (Cyan/Electric Blue) on the right side from original mark -->
+    <path d="M 288 236 L 372 152 C 382 142, 396 150, 396 162 L 396 206 C 396 214, 392 222, 386 228 L 334 278 L 392 344 C 398 350, 400 358, 398 366 L 392 396 C 388 408, 372 412, 362 402 L 278 316 Z"
+          fill="url(#cyanGlow)" 
+          opacity="0.95"/>
+  </g>
+
+  <!-- Stylus / Digital Drawing Pen Tip intersecting and emerging from the bolt -->
+  <!-- Positioned at the drawing apex, turning the lightning's sharp vector into an active stylus sketching on screen -->
+  <g transform="translate(328, 276) rotate(42)" filter="url(#shadow)">
+    <!-- Pen Barrel -->
+    <path d="M -16 -75 L 16 -75 L 16 -18 L 0 20 L -16 -18 Z" fill="url(#penBody)"/>
+    <!-- Pen Grip ring with brand accent -->
+    <rect x="-16" y="-38" width="32" height="10" rx="3" fill="#6366F1"/>
+    <!-- Precision Stylus Nib -->
+    <path d="M -6 -4 L 6 -4 L 0 24 Z" fill="#0F172A"/>
+    <!-- Active luminous drawing point / spark -->
+    <circle cx="0" cy="26" r="5" fill="#38BDF8" filter="url(#neonGlow)"/>
+    <circle cx="0" cy="26" r="2.5" fill="#FFFFFF"/>
+  </g>
+
+  <!-- Spark / Glow accents symbolizing screen drawing precision -->
+  <circle cx="160" cy="144" r="4" fill="#E0F2FE" filter="url(#neonGlow)"/>
+  <circle cx="340" cy="144" r="4" fill="#E0F2FE" filter="url(#neonGlow)"/>
+  <circle cx="196" cy="426" r="5" fill="#38BDF8" filter="url(#neonGlow)"/>
+
+  <!-- Screen crosshair cursor marker at top right indicating interactive screen tool -->
+  <g transform="translate(378, 126)" opacity="0.75">
+    <circle cx="0" cy="0" r="14" fill="none" stroke="#38BDF8" stroke-width="2"/>
+    <line x1="-19" y1="0" x2="-8" y2="0" stroke="#38BDF8" stroke-width="2" stroke-linecap="round"/>
+    <line x1="8" y1="0" x2="19" y2="0" stroke="#38BDF8" stroke-width="2" stroke-linecap="round"/>
+    <line x1="0" y1="-19" x2="0" y2="-8" stroke="#38BDF8" stroke-width="2" stroke-linecap="round"/>
+    <line x1="0" y1="8" x2="0" y2="19" stroke="#38BDF8" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="0" cy="0" r="2.5" fill="#38BDF8"/>
+  </g>
+</svg>

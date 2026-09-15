@@ -29,6 +29,7 @@ class CanvasWindow(QWidget):
         super().__init__(parent)
         self.mode = mode
         self._click_through = False
+        self._whiteboard_active = False
 
         flags = (Qt.FramelessWindowHint
                  | Qt.Tool
@@ -46,11 +47,36 @@ class CanvasWindow(QWidget):
         else:
             self.setAutoFillBackground(True)
 
+        self.setAttribute(Qt.WA_ShowWithoutActivating, True)
+        self.setFocusPolicy(Qt.NoFocus)
+        self._chrome_checker = None
+
         self.canvas = Canvas(self)
         self.canvas.historyChanged.connect(self.historyChanged)
         self.canvas.interacted.connect(self.interacted)
 
+        # Pre-render dot grid pattern for whiteboard
+        spacing = getattr(config, "WHITEBOARD_DOT_SPACING", 24)
+        from PySide6.QtGui import QPixmap, QBrush
+        dot_pm = QPixmap(spacing, spacing)
+        dot_pm.fill(Qt.transparent)
+        dp = QPainter(dot_pm)
+        dp.setRenderHint(QPainter.Antialiasing, True)
+        dp.setPen(Qt.NoPen)
+        dp.setBrush(QColor(getattr(config, "WHITEBOARD_DOT", "#CBD5E1")))
+        dp.drawEllipse(spacing // 2 - 1, spacing // 2 - 1, 2, 2)
+        dp.end()
+        self._dot_brush = QBrush(dot_pm)
+
         self._place_full_screen()
+
+    def set_chrome_checker(self, checker) -> None:
+        self._chrome_checker = checker
+
+    def is_point_in_chrome(self, gpos) -> bool:
+        if self._chrome_checker:
+            return self._chrome_checker(gpos)
+        return False
 
     # --- geometry -----------------------------------------------------------
     def _place_full_screen(self) -> None:
@@ -66,11 +92,28 @@ class CanvasWindow(QWidget):
         super().resizeEvent(event)
 
     # --- background ---------------------------------------------------------
+    def set_whiteboard_active(self, active: bool) -> None:
+        """Display white backdrop beneath the live annotation layer."""
+        self._whiteboard_active = bool(active)
+        if self.isVisible() and QGuiApplication.platformName() == "xcb":
+            from . import native_x11
+            # When whiteboard is active, canvas is solid opaque white: keep it in
+            # the Normal window layer so the toolbar/panel (Above layer) never get occluded.
+            native_x11.set_window_above(int(self.winId()), not self._whiteboard_active)
+        self.update()
+
+    def is_whiteboard_active(self) -> bool:
+        return self._whiteboard_active
+
     def paintEvent(self, event) -> None:
-        if self.mode == "whiteboard":
-            p = QPainter(self)
+        p = QPainter(self)
+        if self._whiteboard_active or self.mode == "whiteboard":
             p.fillRect(self.rect(), QColor(config.WHITEBOARD_BG))
-            p.end()
+            p.fillRect(self.rect(), self._dot_brush)
+        elif self.mode == "screen":
+            p.setCompositionMode(QPainter.CompositionMode_Clear)
+            p.fillRect(self.rect(), Qt.transparent)
+        p.end()
 
     # --- click-through (pass input to the desktop below) --------------------
     def set_click_through(self, enabled: bool) -> None:
@@ -106,7 +149,9 @@ class CanvasWindow(QWidget):
     def show_overlay(self) -> None:
         self._place_full_screen()
         self.show()
-        self.raise_()
+        if QGuiApplication.platformName() == "xcb":
+            from . import native_x11
+            native_x11.set_window_above(int(self.winId()), not self._whiteboard_active)
 
     def keyPressEvent(self, event) -> None:
         if event.key() == Qt.Key_Escape:

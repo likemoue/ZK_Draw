@@ -1,44 +1,83 @@
-"""Central configuration: palette, sizes, theme colors."""
+import os
 
 APP_NAME = "ZK_Draw"
 
-# Preset colours shown as swatches in the tools panel.
+ASSETS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
+LOGO_MARK_PATH = os.path.join(ASSETS_DIR, "logo", "mark-light-bg.png")
+
+# 12 preset colours matching modern UI palette:
+# Row 1: Royal Blue (#2563EB), Red (#EF4444), Orange (#F59E0B), Yellow (#FACC15)
+# Row 2: White (#FFFFFF), Black/Dark Slate (#0F172A), Brown (#854D0E), Lime (#84CC16)
+# Row 3: Cyan (#06B6D4), Magenta (#EC4899), Sky Blue (#38BDF8), Purple (#8A2BE2)
 PALETTE = [
-    "#FF3B30",  # red
-    "#FF9500",  # orange
-    "#FFCC00",  # yellow
-    "#34C759",  # green
-    "#00C7BE",  # teal
-    "#007AFF",  # blue
-    "#5856D6",  # indigo
-    "#AF52DE",  # purple
-    "#FF2D55",  # pink
-    "#8E8E93",  # gray
-    "#000000",  # black
-    "#FFFFFF",  # white
+    "#2563EB",  # Royal Blue
+    "#EF4444",  # Red
+    "#F59E0B",  # Orange
+    "#FACC15",  # Yellow
+    "#FFFFFF",  # White
+    "#0F172A",  # Dark Slate / Black
+    "#854D0E",  # Brown
+    "#84CC16",  # Lime Green
+    "#06B6D4",  # Cyan
+    "#EC4899",  # Magenta
+    "#38BDF8",  # Sky Blue
+    "#8A2BE2",  # Purple
 ]
 
-# Available pen stroke widths (px) and eraser widths (px).
-PEN_SIZES = [2, 4, 8, 16]
-ERASER_SIZES = [24, 48, 96]
+# Slider ranges for pen and eraser
+PEN_MIN = 1
+PEN_MAX = 25
+DEFAULT_PEN_SIZE = 8
 
-DEFAULT_COLOR = "#FF3B30"
-DEFAULT_PEN_SIZE = 4
-DEFAULT_ERASER_SIZE = 48
+ERASER_MIN = 6
+ERASER_MAX = 60
+DEFAULT_ERASER_SIZE = 24
 
-# --- Theme -----------------------------------------------------------------
-ACCENT = "#2D7DF6"          # highlight / selected state
-ACCENT_SOFT = "#1B4C99"
-PANEL_BG = "#22242B"        # toolbar / panel background
-PANEL_BG2 = "#2C2F38"       # button background
-PANEL_HOVER = "#3A3E4A"
-PANEL_BORDER = "#40444F"
-TEXT = "#F2F3F5"
-TEXT_DIM = "#9AA0AB"
-ICON = "#E6E8EC"
+HIGHLIGHTER_ALPHA = 120
+DEFAULT_HIGHLIGHTER_SIZE = 22
 
-WHITEBOARD_BG = "#FFFFFF"   # whiteboard background colour
+DEFAULT_COLOR = "#2563EB"
 
-# Toolbar geometry
-TB_BTN = 46                 # main toolbar button size (px)
-TB_MARGIN = 8
+# --- Modern Light Theme (Clean White Pill & Modern Card) --------------------
+# Main toolbar pill
+PILL_BG = "#FFFFFF"
+PILL_BORDER = "#E2E8F0"
+PILL_HEADER_TEXT = "#475569"
+BTN_BG = "#FFFFFF"
+BTN_HOVER = "#F1F5F9"
+BTN_PRESSED = "#E2E8F0"
+ACTIVE_BLUE = "#2563EB"
+ACTIVE_BLUE_LIGHT = "#EFF6FF"
+ACTIVE_CYAN = "#2563EB"
+ICON_NORMAL = "#64748B"
+ICON_ACTIVE = "#FFFFFF"
+ICON_DARK = "#475569"
+ICON_LIGHT = "#FFFFFF"
+
+# Modern Light flyout panel
+FLYOUT_BG = "#FFFFFF"
+FLYOUT_BORDER = "#E2E8F0"
+FLYOUT_PREVIEW_BG = "#F8FAFC"
+FLYOUT_TEXT = "#475569"
+FLYOUT_TEXT_DARK = "#1E293B"
+FLYOUT_TEXT_MUTED = "#94A3B8"
+
+# Legacy aliases for compatibility
+ACCENT = ACTIVE_BLUE
+ACCENT_SOFT = ACTIVE_BLUE_LIGHT
+PANEL_BG = FLYOUT_BG
+PANEL_BG2 = "#F8FAFC"
+PANEL_HOVER = BTN_HOVER
+PANEL_BORDER = FLYOUT_BORDER
+TEXT = FLYOUT_TEXT
+TEXT_DIM = FLYOUT_TEXT_MUTED
+ICON = ICON_NORMAL
+
+WHITEBOARD_BG = "#FFFFFF"
+WHITEBOARD_DOT = "#CBD5E1"
+WHITEBOARD_DOT_SPACING = 24
+
+# Geometry
+TB_WIDTH = 54
+TB_BTN = 40
+
