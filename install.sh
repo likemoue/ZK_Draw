@@ -49,6 +49,20 @@ if [[ "$REAL_USER" != "$(id -un)" ]]; then
 fi
 update-desktop-database "$APPDIR" 2>/dev/null || true
 
+echo "==> [5/5] Creating Desktop shortcut"
+DESKTOP_DIR="$(sudo -u "$REAL_USER" xdg-user-dir DESKTOP 2>/dev/null || echo "$REAL_HOME/Desktop")"
+if [ -d "$DESKTOP_DIR" ]; then
+    cp "$APPDIR/zk-draw.desktop" "$DESKTOP_DIR/"
+    chmod +x "$DESKTOP_DIR/zk-draw.desktop"
+    if [[ "$REAL_USER" != "$(id -un)" ]]; then
+        chown "$REAL_USER:" "$DESKTOP_DIR/zk-draw.desktop" 2>/dev/null || true
+    fi
+    # Trust the shortcut (important for Cinnamon/GNOME on Linux Mint)
+    if command -v gio >/dev/null 2>&1; then
+        sudo -u "$REAL_USER" gio set "$DESKTOP_DIR/zk-draw.desktop" metadata::trusted true 2>/dev/null || true
+    fi
+fi
+
 echo
 echo "============================================================"
 echo " ZK_Draw installed."
