@@ -131,6 +131,7 @@ class MainToolbar(CapsuleFrame):
         super().__init__(parent)
         self.setWindowFlags(Qt.FramelessWindowHint
                             | Qt.WindowStaysOnTopHint
+                            | Qt.X11BypassWindowManagerHint
                             | Qt.Tool
                             | Qt.NoDropShadowWindowHint)
         self._collapsed = False

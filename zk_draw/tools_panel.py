@@ -95,6 +95,7 @@ class ToolFlyoutPanel(FlyoutFrame):
         super().__init__(parent)
         self.setWindowFlags(Qt.FramelessWindowHint
                             | Qt.WindowStaysOnTopHint
+                            | Qt.X11BypassWindowManagerHint
                             | Qt.Tool
                             | Qt.NoDropShadowWindowHint)
         self._current_tool = "pen"
