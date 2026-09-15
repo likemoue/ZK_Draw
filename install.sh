@@ -59,7 +59,11 @@ if [ -d "$DESKTOP_DIR" ]; then
     fi
     # Trust the shortcut (important for Cinnamon/GNOME on Linux Mint)
     if command -v gio >/dev/null 2>&1; then
-        sudo -u "$REAL_USER" gio set "$DESKTOP_DIR/zk-draw.desktop" metadata::trusted true 2>/dev/null || true
+        if [[ "$(id -un)" == "$REAL_USER" ]]; then
+            gio set "$DESKTOP_DIR/zk-draw.desktop" metadata::trusted true 2>/dev/null || true
+        else
+            sudo -u "$REAL_USER" gio set "$DESKTOP_DIR/zk-draw.desktop" metadata::trusted true 2>/dev/null || true
+        fi
     fi
 fi
 
