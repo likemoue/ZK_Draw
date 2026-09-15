@@ -164,8 +164,11 @@ class Controller:
             native_x11.update_canvas_input_shape(int(self.screen_win.winId()), False, holes)
 
     def _raise_ui(self) -> None:
+        self.screen_win.raise_()
         if self.screen_win.isVisible() and QGuiApplication.platformName() == "xcb":
             from . import native_x11
+            # Re-assert always-on-top in case another app stole it
+            native_x11.set_window_above(int(self.screen_win.winId()), not self.screen_win.is_whiteboard_active())
             above = []
             if self.panel.isVisible():
                 above.append(int(self.panel.winId()))

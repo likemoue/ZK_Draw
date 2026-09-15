@@ -38,7 +38,7 @@ class CanvasWindow(QWidget):
         # The opaque whiteboard is a normal-layer window so the toolbar/tools
         # panel (which ARE always-on-top) reliably stay visible above it.
         if mode == "screen":
-            flags |= Qt.WindowStaysOnTopHint
+            flags |= Qt.WindowStaysOnTopHint | Qt.X11BypassWindowManagerHint
         self.setWindowFlags(flags)
         self.setWindowTitle(f"{config.APP_NAME} - {mode}")
 
