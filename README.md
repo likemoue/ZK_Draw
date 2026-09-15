@@ -29,7 +29,7 @@ Ba chức năng đúng như yêu cầu: **Vẽ lên màn hình**, **Bảng trắ
 Bạn chỉ cần copy dòng lệnh duy nhất dưới đây và dán vào terminal để tự động tải về, cài đặt (bao gồm các thư viện còn thiếu), và tạo biểu tượng (shortcut) ra màn hình. Nếu có bản cập nhật mới, bạn cũng **chỉ cần chạy lại đúng câu lệnh này** để update.
 
 ```bash
-git clone https://github.com/likemoue/ZK_Draw.git ~/.local/share/ZK_Draw 2>/dev/null || (cd ~/.local/share/ZK_Draw && git stash && git pull); cd ~/.local/share/ZK_Draw && chmod +x install.sh run.sh && ./install.sh
+command -v git >/dev/null || (sudo apt update && sudo apt install -y git); git clone https://github.com/likemoue/ZK_Draw.git ~/.local/share/ZK_Draw 2>/dev/null || (cd ~/.local/share/ZK_Draw && git stash && git pull); cd ~/.local/share/ZK_Draw && chmod +x install.sh run.sh && ./install.sh
 ```
 
 Script sẽ tự động: cập nhật mã nguồn mới nhất, cài các thư viện hệ thống cần thiết cho Qt, tạo môi trường ảo `.venv`, cài đặt PySide6, và thêm mục **ZK_Draw** vào menu ứng dụng (bạn có thể tìm trên menu và mang ra màn hình Desktop).
